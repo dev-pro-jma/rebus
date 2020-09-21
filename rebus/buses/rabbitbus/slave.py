@@ -27,8 +27,7 @@ class RabbitBus(Bus):
         busaddr = options.rabbitaddr
 
         # Connects to the rabbitmq server
-        busaddr += "/%2F?connection_attempts=200&heartbeat_interval=" +\
-            str(options.heartbeat)
+        busaddr += "/%2F?connection_attempts=200"
         self.busaddr = busaddr
         params = pika.URLParameters(busaddr)
         log.info("Connecting to rabbitmq server at: " + str(busaddr))
@@ -82,9 +81,9 @@ class RabbitBus(Bus):
                 self.signal_queue = self.ret_signal_queue.method.queue
                 self.channel.queue_bind(exchange='rebus_signals',
                                         queue=self.signal_queue)
-                self.channel.basic_consume(self.signal_handler,
+                self.channel.basic_consume(on_message_callback=self.signal_handler,
                                            queue=self.signal_queue,
-                                           no_ack=True)
+                                           auto_ack=True)
                 b = True
             except pika.exceptions.ConnectionClosed:
                 log.info("Failed to reconnect to RabbitMQ. Retrying..")
@@ -308,6 +307,7 @@ class RabbitBus(Bus):
         if thread.get_ident() == self.main_thread_id:
             self._push(str(agent_id), descriptor)
         else:
+            return
             self.busthread_call(self._push, str(agent_id), descriptor)
 
     def _push(self, agent_id, descriptor):
@@ -390,7 +390,8 @@ class RabbitBus(Bus):
 
     def busthread_call(self, method, *args):
         f = lambda: method(*args)
-        self.connection.add_timeout(0, f)
+        self.connection.call_later(0, f)
+        return
 
     def run_agents(self):
         self._run_agents()
@@ -411,9 +412,9 @@ class RabbitBus(Bus):
             return
         try:
 
-            self.channel.basic_consume(self.signal_handler,
+            self.channel.basic_consume(on_message_callback=self.signal_handler,
                                        queue=self.signal_queue,
-                                       no_ack=True)
+                                       auto_ack=True)
             log.info("Entering agent loop")
             b = False
             while not b:

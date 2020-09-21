@@ -60,8 +60,7 @@ class RabbitBusMaster(BusMaster):
 
         # Connects to the rabbitmq server
         self.server_addr = (
-            server_addr + "/%2F?connection_attempts=200&heartbeat_interval=" +
-            str(heartbeat_interval))
+            server_addr + "/%2F?connection_attempts=200")
         self.params = pika.URLParameters(self.server_addr)
 
         b = False
@@ -86,12 +85,12 @@ class RabbitBusMaster(BusMaster):
         # Create the rpc queue
         self.channel.queue_declare(queue='rebus_master_rpc_highprio')
         self.channel.queue_purge(queue='rebus_master_rpc_highprio')
-        self.channel.basic_consume(self._rpc_callback,
+        self.channel.basic_consume(on_message_callback=self._rpc_callback,
                                    queue='rebus_master_rpc_highprio',
                                    arguments={'x-priority': 1})
         self.channel.queue_declare(queue='rebus_master_rpc_lowprio')
         self.channel.queue_purge(queue='rebus_master_rpc_lowprio')
-        self.channel.basic_consume(self._rpc_callback,
+        self.channel.basic_consume(on_message_callback=self._rpc_callback,
                                    queue='rebus_master_rpc_lowprio',
                                    arguments={'x-priority': 0})
         # bus is now ready to serve requests, publish registration IDs
@@ -670,7 +669,7 @@ class RabbitBusMaster(BusMaster):
 
     def _busthread_call(self, method, *args):
         f = lambda: method(*args)
-        self.connection.add_timeout(0, f)
+        self.connection.call_later(0, f)
 
     def _sched_inject(self, agent_id, desc_domain, uuid, selector, target):
         """
